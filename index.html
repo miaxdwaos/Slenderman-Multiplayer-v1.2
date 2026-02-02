@@ -106,7 +106,6 @@
             addChatMessage(data.sender, data.text);
             if (!hostConn) broadcast(data, data.sender); 
         } else if (data.type === 'collect') {
-            // EL HOST RECIBE PETICIÓN DE RECOLECCIÓN
             if (!hostConn && worldMap[data.cx][data.cy] === 2) {
                 worldMap[data.cx][data.cy] = 0;
                 notesCollected++;
@@ -134,9 +133,12 @@
         if (players[peerId]) {
             delete players[peerId];
             if (connections[peerId]) { connections[peerId].close(); delete connections[peerId]; }
+            
+            // REGLA: Si la partida empezó y te quedaste solo (1 jugador), REINICIAR.
             if (gameStarted && Object.keys(players).length < 2) {
-                alert("Te has quedado solo.");
+                alert("La reunión se ha disuelto. Alguien se fue y te has quedado solo.");
                 location.reload(); 
+                return;
             }
             syncToAll();
         }
@@ -162,7 +164,10 @@
             }, 30);
         });
         hostConn.on('data', handleData);
-        hostConn.on('close', () => { alert("Host desconectado."); location.reload(); });
+        hostConn.on('close', () => { 
+            alert("El Host ha cerrado la partida."); 
+            location.reload(); 
+        });
     }
 
     function startGame() {
@@ -228,19 +233,16 @@
         players[myId].x = posX;
         players[myId].y = posY;
 
-        // --- DETECCIÓN DE PÁGINAS PARA TODOS ---
         let mx = Math.floor(posX), my = Math.floor(posY);
         for(let ix=-1; ix<=1; ix++) {
             for(let iy=-1; iy<=1; iy++) {
                 let cx = mx+ix, cy = my+iy;
                 if(worldMap[cx] && worldMap[cx][cy] === 2) {
                     if(Math.hypot(posX-(cx+0.5), posY-(cy+0.5)) < 0.7) {
-                        // Enviamos la petición de recolección al Host
                         let msg = { type: 'collect', cx: cx, cy: cy };
                         if (hostConn) {
                             hostConn.send(msg);
                         } else {
-                            // Si soy el host, lo proceso directamente
                             handleData(msg);
                         }
                     }
@@ -248,7 +250,6 @@
             }
         }
 
-        // Lógica de Slenderman (solo calculada por el Host)
         if(!hostConn && slenderman.active) {
             let closest = null, minDist = 999;
             for(let id in players) {
